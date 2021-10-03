@@ -45,8 +45,9 @@ knn_res <-
   knn_wflow %>% 
   fit_resamples(
     resamples = cv_folds, 
-    metrics = metric_set(recall, f_meas, 
-                         accuracy, sens, spec),
+    metrics = metric_set(recall, precision, f_meas, 
+                         accuracy, kap,
+                         roc_auc, sens, spec),
     control = control_resamples(save_pred = T)
   ) 
 knn_res %>% collect_metrics(summarize = T)
@@ -73,8 +74,9 @@ rf_res <-
   rf_wflow %>% 
   fit_resamples(
     resamples = cv_folds, 
-    metrics = metric_set(recall, f_meas, 
-                         accuracy, sens, spec),
+    metrics = metric_set(recall, precision, f_meas, 
+                         accuracy, kap,
+                         roc_auc, sens, spec),
     control = control_resamples(save_pred = T)
   )
 rf_res %>%  collect_metrics(summarize = T)
@@ -99,8 +101,9 @@ xgb_res <-
   xgb_wflow %>% 
   fit_resamples(
     resamples = cv_folds, 
-    metrics = metric_set(recall, f_meas, 
-                         accuracy, sens, spec),
+    metrics = metric_set(recall, precision, f_meas, 
+                         accuracy, kap,
+                         roc_auc, sens, spec),
     control = control_resamples(save_pred = T)
   )
 xgb_res %>% collect_metrics(summarize = T)
@@ -112,10 +115,11 @@ xgb_metrics <-
 
 last_fit(rf_wflow, 
          split = tt_split,
-         metrics = metric_set(recall, f_meas, 
-                              accuracy, sens, spec)) %>% collect_metrics()
+         metrics = metric_set(recall, precision, f_meas, 
+                              accuracy, kap,
+                              roc_auc, sens, spec)) %>% collect_metrics()
 
-bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
+ML_op_acc <- bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
   select(model, .metric, mean, std_err) %>% 
   pivot_wider(names_from = .metric, values_from = c(mean, std_err)) %>%
   arrange(mean_accuracy) %>% 
@@ -125,7 +129,29 @@ bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
   coord_flip() +
   xlab("Mean Accuracy -- MultiClass") +
   ylab("Model") + 
-  labs(title="Model Metrics",
-       subtitle = "Evaluation",
+  labs(title="Model Metrics Evaluation",
+       subtitle = "without the latent class",
        caption = "Best Model is RF with .43 in Train Set & .48 in Test Set") +
   theme_bw()
+
+ML_op_auc <- bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
+  select(model, .metric, mean, std_err) %>% 
+  pivot_wider(names_from = .metric, values_from = c(mean, std_err)) %>%
+  arrange(mean_roc_auc) %>% 
+  mutate(model = fct_reorder(model, mean_roc_auc)) %>%
+  ggplot(aes(model, mean_roc_auc, fill = model)) +
+  geom_col() +
+  coord_flip() +
+  xlab("Mean ROC AUC -- MultiClass") +
+  ylab("Model") + 
+  labs(subtitle = "Raw Prepped Data", 
+       caption = "Best Model is RF with .74 in Train Set & .77 in Test Set") +
+  theme_bw() + theme(legend.position = "none")
+
+rf_pred_roc_auc <- rf_res %>% collect_predictions() %>% 
+  group_by(id) %>%
+  roc_curve(choice_of_party, `.pred_CDU / CSU`:`.pred_UNDECIDED`) %>% 
+  autoplot() + labs(subtitle = "ROC AUC")
+
+gridExtra::grid.arrange(ML_op_auc, rf_pred_roc_auc, ncol = 2,
+                        top = "Model Evaluation Metrics")

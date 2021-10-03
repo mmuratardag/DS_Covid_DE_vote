@@ -2,16 +2,11 @@
 cores <- parallel::detectCores(logical = F)
 doParallel::registerDoParallel(cores = cores-1)
 
-load("data/data_class.RData")
+load("data/data_profile.RData")
 colnames(d)
 
 library(tidyverse)
 library(tidymodels)
-
-d <- d %>% select(id:education_cat,
-                  choice_of_party,
-                  marstat:household,
-                  class)
 
 set.seed(666)
 tt_split <- initial_split(d, 
@@ -24,8 +19,12 @@ model_recipe <- recipe(choice_of_party ~ ., data = train_set) %>%
   update_role(id, new_role = "ID") %>%
   step_naomit(everything(), skip = T) %>%
   step_novel(all_nominal(), -all_outcomes()) %>%
-  step_dummy(all_nominal(), -all_outcomes())
+  step_normalize(all_numeric(), -all_outcomes()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_zv(all_numeric(), -all_outcomes()) %>%
+  step_corr(all_predictors(), threshold = 0.7, method = "spearman")
 
+summary(model_recipe)
 prepped_data <- model_recipe %>% prep() %>% juice()
 
 set.seed(666)
@@ -119,7 +118,7 @@ last_fit(rf_wflow,
                               accuracy, kap,
                               roc_auc, sens, spec)) %>% collect_metrics()
 
-ML_op_auc_class <- bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
+ML_op_auc_prof <- bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
   select(model, .metric, mean, std_err) %>% 
   pivot_wider(names_from = .metric, values_from = c(mean, std_err)) %>%
   arrange(mean_roc_auc) %>% 
@@ -129,18 +128,16 @@ ML_op_auc_class <- bind_rows(knn_metrics, rf_metrics, xgb_metrics) %>%
   coord_flip() +
   xlab("Mean ROC AUC -- MultiClass") +
   ylab("Model") + 
-  labs(title = "2 Latent classes are uncovered with further feature engineering",
-       subtitle = "All latent class indicators are dropped from the model
-       \n58 survey-items on COVID 19 are summarized with the latent class",
-       caption = "Best Model is RF with .58 in Train Set & .60 in Test Set.
-       \nThe best model's performance went down by 17% when 58 survey-items are 
-       \nsummarized with a latent class variable") +
+  labs(title = "9 Latent profiles are uncovered after modeling 7 latent variables",
+       subtitle = "Socio-demographics + latent profiles + binary variables on
+       \nCOVID attitudes are fed into the model as predictors",
+       caption = "Best Model is RF with .74 in Train Set & .79 in Test Set.") +
   theme_bw() + theme(legend.position = "none")
 
-rf_pred_roc_auc_class <- rf_res %>% collect_predictions() %>% 
+rf_pred_roc_auc_prof <- rf_res %>% collect_predictions() %>% 
   group_by(id) %>%
   roc_curve(choice_of_party, `.pred_CDU / CSU`:`.pred_UNDECIDED`) %>% 
   autoplot() + labs(subtitle = "ROC AUC")
 
-gridExtra::grid.arrange(ML_op_auc_class, rf_pred_roc_auc_class, ncol = 2,
+gridExtra::grid.arrange(ML_op_auc_prof, rf_pred_roc_auc_prof, ncol = 2,
                         top = "Model Evaluation Metrics")

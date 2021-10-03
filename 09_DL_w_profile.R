@@ -2,11 +2,12 @@
 cores <- parallel::detectCores(logical = F)
 doParallel::registerDoParallel(cores = cores-1)
 
-load("data/data.RData")
+load("data/data_profile.RData")
+colnames(d)
 
 library(tidyverse)
 library(fastDummies)
-cat_var <- colnames(d[,c(2:5,8:9)])
+cat_var <- colnames(d[,c(2:5,8:9,42)])
 df <- dummy_cols(d,
                  select_columns = cat_var,
                  remove_first_dummy = T,
@@ -19,8 +20,8 @@ set.seed(666)
 train <- df %>% sample_frac(.9)
 test  <- anti_join(df, train, by = 'id')
 
-x_train <- train %>% select(political_orientation:household_three_and_more)
-x_test  <- test %>% select(political_orientation:household_three_and_more)
+x_train <- train %>% select(political_orientation:profile_Profile9)
+x_test  <- test %>% select(political_orientation:profile_Profile9)
 
 y_train <- train %>% select(choice_of_party)
 y_test <- test %>% select(choice_of_party)
@@ -98,7 +99,7 @@ model_history <- model %>% fit(
 
 score <- evaluate(model, x_test, y_test)
 
-DL_op <- plot(model_history) + theme_bw() + xlab("") +
+DL_op_profile <- plot(model_history) + theme_bw() + xlab("") +
   labs(title = "FeedForward DNN",
-       subtitle = "Raw Prepped Data",
+       subtitle = "Data with Latent Profile",
        caption = "AUC | MultiClass in the test set = .74")

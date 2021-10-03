@@ -7,7 +7,7 @@ colnames(d)
 
 library(tidyverse)
 library(fastDummies)
-cat_var <- colnames(d[,c(2:4,6,8:9,66)])
+cat_var <- colnames(d[,c(2:5,6,8:9,66)])
 df <- dummy_cols(d,
                  select_columns = cat_var,
                  remove_first_dummy = T,
@@ -71,7 +71,7 @@ build_model <- function() {
   model %>% compile(
     loss = "categorical_crossentropy",
     optimizer = "adam",
-    metrics = list("accuracy")
+    metrics = tensorflow::tf$keras$metrics$AUC()
   )
   model
 }
@@ -101,5 +101,7 @@ model_history <- model %>% fit(
 
 score <- evaluate(model, x_test, y_test)
 
-plot(model_history) + theme_bw() + xlab("") +
-  labs(subtitle = "Model Evaluation | Accuracy -- MultiClass in the test set = 19 %")
+DL_op_class <- plot(model_history) + theme_bw() + xlab("") +
+  labs(title = "FeedForward DNN",
+       subtitle = "Data with Latent Class",
+       caption = "AUC | MultiClass in the test set = .74")

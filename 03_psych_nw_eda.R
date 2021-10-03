@@ -57,7 +57,7 @@ d <- d %>% select(-c(hzcy019a:hzcy025a))
 colnames(d)
 
 # compliance with curfew
-co_cu <- d %>% select(hzcy026a:hzcy032a)
+co_cu <- d %>% select(hzcy027a:hzcy032a)
 plot(get_ega_op(co_cu))
 
 co_cu_la <- UVA(data = co_cu, model = "glasso", method = "wTO",
